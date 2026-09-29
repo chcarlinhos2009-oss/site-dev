@@ -663,7 +663,7 @@ async function enviarMensagem(event) {
     const { error: erroToken } =
       await supabaseClient
 
-        .from('tokens')
+        .from('token')
 
         .insert({
 
