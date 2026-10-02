@@ -696,7 +696,53 @@ async function enviarMensagem(event) {
 
 
     /* --------------------------------------------------------
-       3. ALTERAR SOLICITAÇÃO PARA ENVIADO
+       3. ENVIAR E-MAIL AUTOMATICAMENTE PELO RESEND
+       -------------------------------------------------------- */
+
+    const { data: resultadoEmail, error: erroEmail } =
+      await supabaseClient.functions.invoke(
+        'enviar-token',
+        {
+          body: {
+            email: email,
+            escola: solicitacao.escola || '',
+            codigo: codigo
+          }
+        }
+      );
+
+    if (erroEmail) {
+      console.error(
+        'Erro ao chamar a função enviar-token:',
+        erroEmail
+      );
+
+      throw new Error(
+        erroEmail.message ||
+        'Não foi possível chamar o serviço de envio de e-mail.'
+      );
+    }
+
+    if (!resultadoEmail || resultadoEmail.success !== true) {
+      console.error(
+        'Resposta da função enviar-token:',
+        resultadoEmail
+      );
+
+      throw new Error(
+        (resultadoEmail && resultadoEmail.error)
+          ? (
+              typeof resultadoEmail.error === 'string'
+                ? resultadoEmail.error
+                : JSON.stringify(resultadoEmail.error)
+            )
+          : 'O e-mail não foi enviado.'
+      );
+    }
+
+
+    /* --------------------------------------------------------
+       4. ALTERAR SOLICITAÇÃO PARA ENVIADO
        -------------------------------------------------------- */
 
     const { error: erroStatus } =
@@ -726,11 +772,11 @@ async function enviarMensagem(event) {
 
 
     /* --------------------------------------------------------
-       4. SUCESSO
+       5. SUCESSO
        -------------------------------------------------------- */
 
     alert(
-      '✅ Código liberado com sucesso!\n\n' +
+      '✅ Código liberado e e-mail enviado com sucesso!\n\n' +
 
       'E-mail: ' + email + '\n' +
 
