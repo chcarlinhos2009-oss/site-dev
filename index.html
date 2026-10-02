@@ -301,7 +301,12 @@ const SUPABASE_KEY =
 const supabaseClient =
   window.supabase.createClient(
     SUPABASE_URL,
-    SUPABASE_KEY
+    SUPABASE_KEY,
+    {
+      db: {
+        schema: 'public'
+      }
+    }
   );
 
 
@@ -785,7 +790,9 @@ async function renderizarHistorico() {
   const { data, error } =
     await supabaseClient
 
-      .from('tokens')
+      .schema('public')
+
+      .from('token')
 
       .select('*')
 
