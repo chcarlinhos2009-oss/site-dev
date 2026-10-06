@@ -263,6 +263,94 @@
   </div>
 
 
+  <!-- CENTRAL DE ATENDIMENTOS -->
+  <section class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-sm">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+      <div>
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-headset text-cyan-400"></i>
+          Central de Atendimentos
+        </h2>
+        <p class="text-xs text-slate-400 mt-1">Atenda professores e coordenadores diretamente pelo sistema.</p>
+      </div>
+      <button type="button" onclick="carregarAtendimentos()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-xs font-bold transition">
+        <i class="fa-solid fa-rotate mr-1"></i> Atualizar
+      </button>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+      <div class="bg-slate-900/70 border border-red-500/20 rounded-xl p-3">
+        <div class="text-[10px] uppercase font-bold text-red-400">Abertos</div>
+        <div id="suporteCountAbertos" class="text-2xl font-black text-white mt-1">0</div>
+      </div>
+      <div class="bg-slate-900/70 border border-amber-500/20 rounded-xl p-3">
+        <div class="text-[10px] uppercase font-bold text-amber-400">Em atendimento</div>
+        <div id="suporteCountAtendimento" class="text-2xl font-black text-white mt-1">0</div>
+      </div>
+      <div class="bg-slate-900/70 border border-emerald-500/20 rounded-xl p-3">
+        <div class="text-[10px] uppercase font-bold text-emerald-400">Resolvidos</div>
+        <div id="suporteCountResolvidos" class="text-2xl font-black text-white mt-1">0</div>
+      </div>
+      <div class="bg-slate-900/70 border border-blue-500/20 rounded-xl p-3">
+        <div class="text-[10px] uppercase font-bold text-blue-400">Total</div>
+        <div id="suporteCountTotal" class="text-2xl font-black text-white mt-1">0</div>
+      </div>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-2 mb-4">
+      <input id="suporteBusca" oninput="renderizarListaAtendimentos()" placeholder="Pesquisar por usuário, escola ou assunto..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500">
+      <select id="suporteFiltroStatus" onchange="renderizarListaAtendimentos()" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500">
+        <option value="todos">Todos os status</option>
+        <option value="aberto">Abertos</option>
+        <option value="em_atendimento">Em atendimento</option>
+        <option value="resolvido">Resolvidos</option>
+        <option value="encerrado">Encerrados</option>
+      </select>
+    </div>
+
+    <div id="listaAtendimentos" class="space-y-2">
+      <div class="p-6 text-center text-slate-500 text-xs">
+        <i class="fa-solid fa-spinner fa-spin mr-2"></i> Carregando atendimentos...
+      </div>
+    </div>
+  </section>
+
+  <!-- MODAL DE ATENDIMENTO -->
+  <div id="modalAtendimento" class="hidden fixed inset-0 z-50 bg-black/70 p-4 flex items-center justify-center">
+    <div class="w-full max-w-2xl max-h-[90vh] bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div class="p-4 border-b border-slate-700 flex items-center justify-between gap-3">
+        <div>
+          <div id="suporteModalTitulo" class="font-bold text-white text-sm">Atendimento</div>
+          <div id="suporteModalInfo" class="text-[11px] text-slate-400 mt-1"></div>
+        </div>
+        <button type="button" onclick="fecharModalAtendimento()" class="text-slate-400 hover:text-white text-lg px-2">&times;</button>
+      </div>
+
+      <div id="suporteMensagens" class="flex-1 overflow-y-auto p-4 space-y-3 min-h-[260px] max-h-[55vh]">
+      </div>
+
+      <div class="p-4 border-t border-slate-700 space-y-3">
+        <div class="flex gap-2">
+          <select id="suporteNovoStatus" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+            <option value="aberto">Aberto</option>
+            <option value="em_atendimento">Em atendimento</option>
+            <option value="resolvido">Resolvido</option>
+            <option value="encerrado">Encerrado</option>
+          </select>
+          <button type="button" onclick="alterarStatusAtendimento()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-xs font-bold">
+            Atualizar status
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <textarea id="suporteResposta" rows="3" placeholder="Digite sua resposta..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500"></textarea>
+          <button type="button" onclick="enviarRespostaAtendimento()" class="self-end bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-3 rounded-xl text-xs font-bold transition">
+            <i class="fa-solid fa-paper-plane mr-1"></i> Enviar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- HISTÓRICO -->
 
   <section class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-sm">
@@ -1073,6 +1161,183 @@ async function renderizarHistorico() {
 
 
 /* ============================================================
+   CENTRAL DE ATENDIMENTOS
+   ============================================================ */
+let atendimentosSuporte = [];
+let atendimentoSelecionado = null;
+
+async function chamarSuporte(body) {
+  const { data, error } = await supabaseClient.functions.invoke('suporte', { body });
+  if (error) throw new Error(error.message || 'Não foi possível comunicar com o suporte.');
+  if (!data || data.sucesso !== true) {
+    throw new Error(data?.erro || 'Não foi possível concluir a operação de suporte.');
+  }
+  return data;
+}
+
+async function carregarAtendimentos() {
+  const lista = document.getElementById('listaAtendimentos');
+  lista.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Carregando atendimentos...</div>';
+  try {
+    const data = await chamarSuporte({ acao: 'listar_admin' });
+    atendimentosSuporte = data.atendimentos || [];
+    atualizarContadoresSuporte();
+    renderizarListaAtendimentos();
+  } catch (erro) {
+    console.error('Erro ao carregar atendimentos:', erro);
+    lista.innerHTML = '<div class="p-6 text-center text-red-400 text-xs"><i class="fa-solid fa-circle-exclamation mr-2"></i> Não foi possível carregar os atendimentos.</div>';
+  }
+}
+
+function atualizarContadoresSuporte() {
+  const contar = status => atendimentosSuporte.filter(a => String(a.status || '').toLowerCase() === status).length;
+  document.getElementById('suporteCountAbertos').textContent = contar('aberto');
+  document.getElementById('suporteCountAtendimento').textContent = contar('em_atendimento');
+  document.getElementById('suporteCountResolvidos').textContent = contar('resolvido');
+  document.getElementById('suporteCountTotal').textContent = atendimentosSuporte.length;
+}
+
+function statusSuporteBadge(status) {
+  const s = String(status || '').toLowerCase();
+  const mapa = {
+    aberto: ['bg-red-500/10 text-red-400 border-red-500/20', 'Aberto'],
+    em_atendimento: ['bg-amber-500/10 text-amber-400 border-amber-500/20', 'Em atendimento'],
+    resolvido: ['bg-emerald-500/10 text-emerald-400 border-emerald-500/20', 'Resolvido'],
+    encerrado: ['bg-slate-500/10 text-slate-400 border-slate-500/20', 'Encerrado']
+  };
+  const item = mapa[s] || ['bg-slate-500/10 text-slate-400 border-slate-500/20', status || '-'];
+  return '<span class="' + item[0] + ' border px-2 py-1 rounded-full text-[10px] font-bold">' + esc(item[1]) + '</span>';
+}
+
+function renderizarListaAtendimentos() {
+  const lista = document.getElementById('listaAtendimentos');
+  const busca = String(document.getElementById('suporteBusca').value || '').toLowerCase().trim();
+  const filtro = document.getElementById('suporteFiltroStatus').value;
+
+  const filtrados = atendimentosSuporte.filter(a => {
+    const texto = [a.usuario, a.escola, a.assunto, a.categoria, a.email].join(' ').toLowerCase();
+    const statusOk = filtro === 'todos' || String(a.status || '').toLowerCase() === filtro;
+    return statusOk && (!busca || texto.includes(busca));
+  });
+
+  if (!filtrados.length) {
+    lista.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs">Nenhum atendimento encontrado.</div>';
+    return;
+  }
+
+  lista.innerHTML = filtrados.map(a => `
+    <button type="button" onclick="abrirAtendimento(${Number(a.id)})" class="w-full text-left bg-slate-900/60 hover:bg-slate-700/50 border border-slate-700 rounded-xl p-4 transition">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[10px] text-cyan-400 font-mono">#${Number(a.id)}</span>
+            ${statusSuporteBadge(a.status)}
+            <span class="text-[10px] text-slate-500">${esc(a.categoria || 'Outro')}</span>
+          </div>
+          <div class="font-bold text-white text-sm mt-2 truncate">${esc(a.assunto || 'Sem assunto')}</div>
+          <div class="text-[11px] text-slate-400 mt-1">${esc(a.usuario || '-')} · ${esc(a.escola || '-')}</div>
+        </div>
+        <div class="text-[10px] text-slate-500 shrink-0">${esc(a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '-')}</div>
+      </div>
+    </button>
+  `).join('');
+}
+
+async function abrirAtendimento(id) {
+  const atendimento = atendimentosSuporte.find(a => Number(a.id) === Number(id));
+  if (!atendimento) return;
+  atendimentoSelecionado = atendimento;
+
+  document.getElementById('suporteModalTitulo').textContent = '#' + atendimento.id + ' · ' + (atendimento.assunto || 'Atendimento');
+  document.getElementById('suporteModalInfo').textContent =
+    (atendimento.usuario || '-') + ' · ' + (atendimento.perfil || '-') + ' · ' + (atendimento.escola || '-') +
+    (atendimento.email ? ' · ' + atendimento.email : '');
+  document.getElementById('suporteNovoStatus').value = atendimento.status || 'aberto';
+  document.getElementById('suporteResposta').value = '';
+  document.getElementById('modalAtendimento').classList.remove('hidden');
+  await carregarMensagensAtendimento();
+}
+
+async function carregarMensagensAtendimento() {
+  if (!atendimentoSelecionado) return;
+  const area = document.getElementById('suporteMensagens');
+  area.innerHTML = '<div class="text-center text-slate-500 text-xs py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Carregando conversa...</div>';
+  try {
+    const data = await chamarSuporte({
+      acao: 'listar_mensagens_admin',
+      atendimento_id: atendimentoSelecionado.id
+    });
+    const mensagens = data.mensagens || [];
+    if (!mensagens.length) {
+      area.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">Nenhuma mensagem ainda.</div>';
+      return;
+    }
+    area.innerHTML = mensagens.map(m => {
+      const suporte = m.remetente_tipo === 'suporte';
+      return `<div class="flex ${suporte ? 'justify-end' : 'justify-start'}">
+        <div class="max-w-[85%] ${suporte ? 'bg-cyan-600/20 border-cyan-500/30' : 'bg-slate-900 border-slate-700'} border rounded-2xl px-4 py-3">
+          <div class="text-[10px] font-bold ${suporte ? 'text-cyan-300' : 'text-slate-400'} mb-1">${esc(suporte ? 'Suporte' : (m.remetente || 'Usuário'))}</div>
+          <div class="text-xs text-slate-200 whitespace-pre-wrap break-words">${esc(m.mensagem || '')}</div>
+          <div class="text-[9px] text-slate-500 mt-2">${esc(m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '')}</div>
+        </div>
+      </div>`;
+    }).join('');
+    area.scrollTop = area.scrollHeight;
+  } catch (erro) {
+    console.error('Erro ao carregar mensagens:', erro);
+    area.innerHTML = '<div class="text-center text-red-400 text-xs py-8">Não foi possível carregar a conversa.</div>';
+  }
+}
+
+async function enviarRespostaAtendimento() {
+  if (!atendimentoSelecionado) return;
+  const campo = document.getElementById('suporteResposta');
+  const mensagem = campo.value.trim();
+  if (!mensagem) return;
+
+  try {
+    await chamarSuporte({
+      acao: 'enviar_mensagem_admin',
+      atendimento_id: atendimentoSelecionado.id,
+      mensagem
+    });
+    campo.value = '';
+    await carregarMensagensAtendimento();
+    await carregarAtendimentos();
+  } catch (erro) {
+    console.error('Erro ao enviar resposta:', erro);
+    alert('Não foi possível enviar a resposta.');
+  }
+}
+
+async function alterarStatusAtendimento() {
+  if (!atendimentoSelecionado) return;
+  const status = document.getElementById('suporteNovoStatus').value;
+  try {
+    await chamarSuporte({
+      acao: 'alterar_status_admin',
+      atendimento_id: atendimentoSelecionado.id,
+      status
+    });
+    atendimentoSelecionado.status = status;
+    await carregarAtendimentos();
+    document.getElementById('suporteNovoStatus').value = status;
+  } catch (erro) {
+    console.error('Erro ao alterar status:', erro);
+    alert('Não foi possível atualizar o status.');
+  }
+}
+
+function fecharModalAtendimento() {
+  document.getElementById('modalAtendimento').classList.add('hidden');
+  atendimentoSelecionado = null;
+}
+
+document.getElementById('modalAtendimento').addEventListener('click', function(e) {
+  if (e.target === this) fecharModalAtendimento();
+});
+
+/* ============================================================
    ATUALIZAÇÃO AUTOMÁTICA
    ============================================================ */
 
@@ -1085,6 +1350,9 @@ async function renderizarHistorico() {
 setInterval(function() {
 
   renderizarSolicitacoes();
+  if (!document.getElementById('painelProtegido').classList.contains('hidden')) {
+    carregarAtendimentos();
+  }
 
 }, 5000);
 
