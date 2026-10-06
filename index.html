@@ -272,6 +272,10 @@
           Central de Atendimentos
         </h2>
         <p class="text-xs text-slate-400 mt-1">Atenda professores e coordenadores diretamente pelo sistema.</p>
+        <div class="flex gap-2 mt-3">
+          <button type="button" onclick="ativarNotificacoesAdmin()" class="text-[10px] font-bold text-slate-300 bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-xl"><i class="fa-solid fa-bell mr-1"></i> Ativar notificações</button>
+          <span id="suporteAdminAviso" class="hidden text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl"></span>
+        </div>
       </div>
       <button type="button" onclick="carregarAtendimentos()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-xs font-bold transition">
         <i class="fa-solid fa-rotate mr-1"></i> Atualizar
@@ -1165,8 +1169,32 @@ async function renderizarHistorico() {
    ============================================================ */
 let atendimentosSuporte = [];
 let atendimentoSelecionado = null;
+let suporteNotificacoesInicializadas = false;
+let suporteMensagensVistasAdmin = {};
+let suporteNotificacoesPendentesAdmin = 0;
 
-async function chamarSuporte(body) {
+async function notificarAdmin(titulo, texto){
+  const toast=document.createElement('div');
+  toast.className='fixed top-4 right-4 z-[100] max-w-sm w-[calc(100%-2rem)] sm:w-auto bg-slate-800 border border-slate-700 shadow-2xl rounded-2xl p-4 flex gap-3 items-start';
+  toast.innerHTML='<div class="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-300 flex items-center justify-center shrink-0"><i class="fa-solid fa-bell"></i></div><div class="min-w-0"><strong class="block text-xs font-extrabold text-white">'+esc(titulo)+'</strong><span class="block text-[11px] text-slate-300 mt-1">'+esc(texto)+'</span></div><button type="button" class="ml-auto text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>';
+  toast.querySelector('button').onclick=()=>toast.remove();
+  document.body.appendChild(toast);
+  setTimeout(()=>{if(toast.parentNode)toast.remove();},6500);
+  try{if('Notification' in window && Notification.permission==='granted')new Notification(titulo,{body:texto});}catch(e){}
+}
+
+async function ativarNotificacoesAdmin(){
+  if(!('Notification' in window)){alert('Seu navegador não oferece notificações.');return;}
+  try{const p=await Notification.requestPermission(); if(p==='granted') alert('Notificações do suporte ativadas.'); else alert('As notificações não foram autorizadas.');}catch(e){alert('Não foi possível ativar as notificações.');}
+}
+
+function atualizarAvisoAdmin(qtd){
+  const el=document.getElementById('suporteAdminAviso');
+  if(!el)return;
+  if(qtd>0){el.textContent=qtd+' nova(s) mensagem(ns)';el.classList.remove('hidden');}else{el.classList.add('hidden');}
+}
+
+function chamarSuporte(body) {
   const { data, error } = await supabaseClient.functions.invoke('suporte', { body });
   if (error) throw new Error(error.message || 'Não foi possível comunicar com o suporte.');
   if (!data || data.sucesso !== true) {
@@ -1180,9 +1208,22 @@ async function carregarAtendimentos() {
   lista.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Carregando atendimentos...</div>';
   try {
     const data = await chamarSuporte({ acao: 'listar_admin' });
-    atendimentosSuporte = data.atendimentos || [];
+    const novaLista = data.atendimentos || [];
+    novaLista.forEach(a => {
+      const mid = a.ultima_mensagem_id;
+      if (a.ultima_mensagem_tipo === 'usuario' && mid && !suporteMensagensVistasAdmin[mid]) {
+        if (suporteNotificacoesInicializadas) {
+          suporteNotificacoesPendentesAdmin++;
+          notificarAdmin('Novo atendimento / mensagem', '#' + a.id + ' · ' + (a.usuario || 'Usuário') + ' enviou uma mensagem.');
+        }
+        suporteMensagensVistasAdmin[mid] = true;
+      }
+    });
+    atendimentosSuporte = novaLista;
     atualizarContadoresSuporte();
     renderizarListaAtendimentos();
+    atualizarAvisoAdmin(suporteNotificacoesPendentesAdmin);
+    suporteNotificacoesInicializadas = true;
   } catch (erro) {
     console.error('Erro ao carregar atendimentos:', erro);
     lista.innerHTML = '<div class="p-6 text-center text-red-400 text-xs"><i class="fa-solid fa-circle-exclamation mr-2"></i> Não foi possível carregar os atendimentos.</div>';
@@ -1247,6 +1288,8 @@ async function abrirAtendimento(id) {
   const atendimento = atendimentosSuporte.find(a => Number(a.id) === Number(id));
   if (!atendimento) return;
   atendimentoSelecionado = atendimento;
+  suporteNotificacoesPendentesAdmin = 0;
+  atualizarAvisoAdmin(0);
 
   document.getElementById('suporteModalTitulo').textContent = '#' + atendimento.id + ' · ' + (atendimento.assunto || 'Atendimento');
   document.getElementById('suporteModalInfo').textContent =
@@ -1268,6 +1311,7 @@ async function carregarMensagensAtendimento() {
       atendimento_id: atendimentoSelecionado.id
     });
     const mensagens = data.mensagens || [];
+    mensagens.forEach(m => { if (m.remetente_tipo === 'usuario') suporteMensagensVistasAdmin[m.id] = true; });
     if (!mensagens.length) {
       area.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">Nenhuma mensagem ainda.</div>';
       return;
