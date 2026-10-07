@@ -310,6 +310,18 @@
         <option value="resolvido">Resolvidos</option>
         <option value="encerrado">Encerrados</option>
       </select>
+      <select id="suporteFiltroCategoria" onchange="renderizarListaAtendimentos()" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500">
+        <option value="todos">Todas as categorias</option>
+        <option value="recuperacao">Recuperação de acesso</option>
+        <option value="duvida">Dúvida</option>
+        <option value="problema">Problema / Bug</option>
+        <option value="estoque">Estoque</option>
+        <option value="equipamento">Equipamento</option>
+        <option value="emprestimo">Empréstimo</option>
+      </select>
+      <button type="button" onclick="limparFiltrosSuporte()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap">
+        <i class="fa-solid fa-rotate-left mr-1"></i> Limpar
+      </button>
     </div>
 
     <div id="listaAtendimentos" class="space-y-2">
@@ -1031,6 +1043,8 @@ async function enviarMensagem(event) {
 
     await renderizarHistorico();
 
+    await carregarAtendimentos();
+
 
   } catch (erro) {
 
@@ -1194,7 +1208,7 @@ function atualizarAvisoAdmin(qtd){
   if(qtd>0){el.textContent=qtd+' nova(s) mensagem(ns)';el.classList.remove('hidden');}else{el.classList.add('hidden');}
 }
 
-function chamarSuporte(body) {
+async function chamarSuporte(body) {
   const { data, error } = await supabaseClient.functions.invoke('suporte', { body });
   if (error) throw new Error(error.message || 'Não foi possível comunicar com o suporte.');
   if (!data || data.sucesso !== true) {
@@ -1250,15 +1264,27 @@ function statusSuporteBadge(status) {
   return '<span class="' + item[0] + ' border px-2 py-1 rounded-full text-[10px] font-bold">' + esc(item[1]) + '</span>';
 }
 
+function limparFiltrosSuporte() {
+  const busca = document.getElementById('suporteBusca');
+  const status = document.getElementById('suporteFiltroStatus');
+  const categoria = document.getElementById('suporteFiltroCategoria');
+  if (busca) busca.value = '';
+  if (status) status.value = 'todos';
+  if (categoria) categoria.value = 'todos';
+  renderizarListaAtendimentos();
+}
+
 function renderizarListaAtendimentos() {
   const lista = document.getElementById('listaAtendimentos');
   const busca = String(document.getElementById('suporteBusca').value || '').toLowerCase().trim();
   const filtro = document.getElementById('suporteFiltroStatus').value;
+  const filtroCategoria = document.getElementById('suporteFiltroCategoria').value;
 
   const filtrados = atendimentosSuporte.filter(a => {
     const texto = [a.usuario, a.escola, a.assunto, a.categoria, a.email].join(' ').toLowerCase();
     const statusOk = filtro === 'todos' || String(a.status || '').toLowerCase() === filtro;
-    return statusOk && (!busca || texto.includes(busca));
+    const categoriaOk = filtroCategoria === 'todos' || String(a.categoria || '').toLowerCase() === filtroCategoria;
+    return statusOk && categoriaOk && (!busca || texto.includes(busca));
   });
 
   if (!filtrados.length) {
