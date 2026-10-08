@@ -345,6 +345,11 @@
             Atualizar status
           </button>
         </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" onclick="redefinirSenhaAtendimento()" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition">
+            <i class="fa-solid fa-key mr-1"></i> Redefinir senha
+          </button>
+        </div>
         <div class="flex gap-2">
           <textarea id="suporteResposta" rows="3" placeholder="Digite sua resposta..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500"></textarea>
           <button type="button" onclick="enviarRespostaAtendimento()" class="self-end bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-3 rounded-xl text-xs font-bold transition">
@@ -1384,6 +1389,27 @@ async function carregarMensagensAtendimento() {
   } catch (erro) {
     console.error('Erro ao carregar mensagens:', erro);
     area.innerHTML = '<div class="text-center text-red-400 text-xs py-8">Não foi possível carregar a conversa.</div>';
+  }
+}
+
+async function redefinirSenhaAtendimento(){
+  if(!atendimentoSelecionado) return;
+  const usuario = String(atendimentoSelecionado.usuario || '').trim();
+  const escola = String(atendimentoSelecionado.escola || '').trim();
+  if(!usuario || !escola){ alert('Não foi possível identificar o usuário e a escola.'); return; }
+  if(usuario.toLowerCase() === 'admin'){ alert('A conta principal não pode ser redefinida por este fluxo.'); return; }
+  if(!confirm('Gerar uma nova senha temporária para @' + usuario + '?')) return;
+  try{
+    const data = await chamarSuporte({acao:'redefinir_senha_admin', usuario, escola});
+    const senha = data.senhaTemporaria || '';
+    if(!senha) throw new Error('A senha temporária não foi retornada.');
+    await navigator.clipboard?.writeText(senha).catch(()=>{});
+    alert('Senha redefinida com sucesso!\n\nUsuário: @' + usuario + '\nSenha temporária: ' + senha + '\n\nA senha foi copiada para a área de transferência quando permitido.');
+    const campo = document.getElementById('suporteResposta');
+    if(campo && !campo.value.trim()) campo.value = 'Sua senha foi redefinida pelo suporte.\n\nSenha temporária: ' + senha + '\n\nAo entrar, altere a senha em Minha conta.';
+  }catch(e){
+    console.error(e);
+    alert(e.message || 'Não foi possível redefinir a senha.');
   }
 }
 
