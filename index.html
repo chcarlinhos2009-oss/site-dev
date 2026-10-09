@@ -1255,10 +1255,35 @@ function iniciarRealtimeAdmin(){
 
 async function chamarSuporte(body) {
   const { data, error } = await supabaseClient.functions.invoke('suporte', { body });
-  if (error) throw new Error(error.message || 'Não foi possível comunicar com o suporte.');
-  if (!data || data.sucesso !== true) {
-    throw new Error(data?.erro || 'Não foi possível concluir a operação de suporte.');
+
+  if (error) {
+    console.error('Erro bruto da Edge Function:', error);
+
+    let detalhe = '';
+
+    try {
+      if (error.context) {
+        const resposta = await error.context.json();
+        detalhe = resposta?.erro || resposta?.message || '';
+      }
+    } catch (e) {
+      console.warn('Não foi possível ler o corpo do erro:', e);
+    }
+
+    throw new Error(
+      detalhe ||
+      error.message ||
+      'A Edge Function retornou um erro.'
+    );
   }
+
+  if (!data || data.sucesso !== true) {
+    throw new Error(
+      data?.erro ||
+      'Não foi possível concluir a operação de suporte.'
+    );
+  }
+
   return data;
 }
 
