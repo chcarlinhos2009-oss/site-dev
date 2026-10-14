@@ -836,228 +836,54 @@ function gerarNovoCodigo() {
    ============================================================ */
 
 async function enviarMensagem(event) {
-
   event.preventDefault();
 
-
-  const id =
-    document.getElementById('envioId').value;
-
-  const email =
-    document.getElementById('envioEmail').value;
-
-  const codigo =
-    document.getElementById('envioCodigo').value;
-
+  const id = document.getElementById('envioId').value.trim();
+  const email = document.getElementById('envioEmail').value.trim();
+  const codigo = document.getElementById('envioCodigo').value.trim().toUpperCase();
 
   if (!id || !email || !codigo) {
-
-    alert(
-      'Selecione uma solicitação antes de liberar o código.'
-    );
-
+    alert('Selecione uma solicitação e informe o código antes de liberar.');
     return;
-
   }
 
-
-  const btn =
-    document.getElementById('btnEnviar');
-
+  const btn = document.getElementById('btnEnviar');
   btn.disabled = true;
-
-  btn.innerHTML =
-    '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
-
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
 
   try {
+    // A função suporte valida o administrador, grava o token no servidor,
+    // envia o e-mail e atualiza o status da solicitação.
+    const { data: resultado, error } = await supabaseClient.functions.invoke('suporte', {
+      body: {
+        acao: 'liberar_token_admin',
+        id,
+        codigo
+      }
+    });
 
-    /* --------------------------------------------------------
-       1. BUSCAR SOLICITAÇÃO
-       -------------------------------------------------------- */
-
-    const { data: solicitacao, error: erroBusca } =
-      await supabaseClient
-
-        .from('solicitacoes')
-
-        .select('*')
-
-        .eq('id', id)
-
-        .single();
-
-
-    if (erroBusca || !solicitacao) {
-
-      throw new Error(
-        'Solicitação não encontrada.'
-      );
-
+    if (error) {
+      console.error('Erro ao chamar suporte:', error);
+      throw new Error(error.message || 'Não foi possível chamar o serviço de suporte.');
+    }
+    if (!resultado || resultado.sucesso !== true) {
+      throw new Error(resultado?.erro || 'Não foi possível liberar o código.');
     }
 
-
-    /* --------------------------------------------------------
-       2. SALVAR TOKEN NO SUPABASE
-       -------------------------------------------------------- */
-
-    const { error: erroToken } =
-      await supabaseClient
-
-        .from('token')
-
-        .insert({
-
-          token: codigo,
-
-          email: email,
-
-          escola: solicitacao.escola || '',
-
-          status: 'disponivel'
-
-        });
-
-
-    if (erroToken) {
-
-      console.error(
-        'Erro ao criar token:',
-        erroToken
-      );
-
-      throw erroToken;
-
-    }
-
-
-    /* --------------------------------------------------------
-       3. ENVIAR E-MAIL AUTOMATICAMENTE PELO RESEND
-       -------------------------------------------------------- */
-
-    const { data: resultadoEmail, error: erroEmail } =
-      await supabaseClient.functions.invoke(
-        'enviar-token',
-        {
-          body: {
-            email: email,
-            escola: solicitacao.escola || '',
-            codigo: codigo
-          }
-        }
-      );
-
-    if (erroEmail) {
-      console.error(
-        'Erro ao chamar a função enviar-token:',
-        erroEmail
-      );
-
-      throw new Error(
-        erroEmail.message ||
-        'Não foi possível chamar o serviço de envio de e-mail.'
-      );
-    }
-
-    if (!resultadoEmail || resultadoEmail.success !== true) {
-      console.error(
-        'Resposta da função enviar-token:',
-        resultadoEmail
-      );
-
-      throw new Error(
-        (resultadoEmail && resultadoEmail.error)
-          ? (
-              typeof resultadoEmail.error === 'string'
-                ? resultadoEmail.error
-                : JSON.stringify(resultadoEmail.error)
-            )
-          : 'O e-mail não foi enviado.'
-      );
-    }
-
-
-    /* --------------------------------------------------------
-       4. ALTERAR SOLICITAÇÃO PARA ENVIADO
-       -------------------------------------------------------- */
-
-    const { error: erroStatus } =
-      await supabaseClient
-
-        .from('solicitacoes')
-
-        .update({
-
-          status: 'ENVIADO'
-
-        })
-
-        .eq('id', id);
-
-
-    if (erroStatus) {
-
-      console.error(
-        'Erro ao atualizar solicitação:',
-        erroStatus
-      );
-
-      throw erroStatus;
-
-    }
-
-
-    /* --------------------------------------------------------
-       5. SUCESSO
-       -------------------------------------------------------- */
-
-    alert(
-      '✅ Código liberado e e-mail enviado com sucesso!\n\n' +
-
-      'E-mail: ' + email + '\n' +
-
-      'Código: ' + codigo
-    );
-
-
+    alert('Código liberado e e-mail enviado com sucesso!\n\nE-mail: ' + (resultado.email || email) + '\nCódigo: ' + codigo);
     document.getElementById('formEnvio').reset();
-
-    document.getElementById('envioId').value =
-      '';
-
-    document.getElementById('btnEnviar').disabled =
-      true;
-
-
-    document.getElementById('btnEnviar').innerHTML =
-      '<i class="fa-solid fa-paper-plane"></i> Liberar Código';
-
-
-    await renderizarSolicitacoes();
-
+    document.getElementById('envioId').value = '';
+    document.getElementById('envioEmail').value = '';
+    document.getElementById('envioCodigo').value = '';
     await renderizarHistorico();
-
-
-  } catch (erro) {
-
-    console.error(erro);
-
-    alert(
-      '❌ Não foi possível liberar o código.\n\n' +
-      'Erro: ' +
-      (erro.message || JSON.stringify(erro))
-    );
-
-
+  } catch (err) {
+    console.error('Erro ao liberar código:', err);
+    alert(err?.message || 'Ocorreu um erro ao liberar o código.');
+  } finally {
     btn.disabled = false;
-
-    btn.innerHTML =
-      '<i class="fa-solid fa-paper-plane"></i> Liberar Código';
-
+    btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Liberar Código';
   }
-
 }
-
 
 /* ============================================================
    HISTÓRICO
