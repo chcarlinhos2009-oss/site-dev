@@ -540,7 +540,6 @@ async function iniciarAutenticacao() {
 
 formLoginDev.addEventListener('submit', async function(event) {
   event.preventDefault();
-  alert('O formulário de login foi acionado!');
   limparErroLogin();
 
   const email = document.getElementById('loginEmail').value.trim();
@@ -562,3 +561,1098 @@ formLoginDev.addEventListener('submit', async function(event) {
       if (msg.includes('email not confirmed')) {
         mostrarErroLogin('Este e-mail ainda não foi confirmado no Supabase. Confira a confirmação da conta em Authentication → Users.');
       } else if (msg.includes('invalid login credentials')) {
+        mostrarErroLogin('O Supabase não aceitou esse e-mail e senha. Nos seus outros dispositivos, o painel pode estar apenas usando uma sessão já salva. Use “Esqueci minha senha” para criar uma senha nova.');
+      } else if (msg.includes('network') || msg.includes('fetch')) {
+        mostrarErroLogin('Não foi possível conectar ao Supabase. Verifique a internet e tente novamente.');
+      } else {
+        mostrarErroLogin('Falha no login: ' + (error.message || 'erro não identificado'));
+      }
+      return;
+    }
+
+    if (!data?.session) {
+      mostrarErroLogin('O login não criou uma sessão. Verifique a conta no Supabase e tente novamente.');
+      return;
+    }
+
+    telaLogin.classList.add('hidden');
+    painelProtegido.classList.remove('hidden');
+    iniciarPainel();
+  } catch (error) {
+    console.error('Erro inesperado no login do Painel Dev:', error);
+    mostrarErroLogin('Não foi possível concluir o login. Verifique a conexão e tente novamente.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Entrar no Painel';
+  }
+});
+
+async function solicitarRedefinicaoSenha() {
+  limparErroLogin();
+  const email = document.getElementById('loginEmail').value.trim();
+  if (!email) {
+    mostrarErroLogin('Digite seu e-mail acima e depois clique em “Esqueci minha senha”.');
+    document.getElementById('loginEmail').focus();
+    return;
+  }
+
+  const btn = document.getElementById('btnEsqueciSenha');
+  btn.disabled = true;
+  btn.textContent = 'Enviando link...';
+  try {
+    const redirectTo = window.location.href.split('#')[0];
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+    alert('Se esse e-mail estiver cadastrado no Supabase, você receberá um link para redefinir a senha. Confira também o spam.');
+  } catch (error) {
+    console.error('Erro ao solicitar redefinição de senha:', error);
+    mostrarErroLogin('Não foi possível enviar o link: ' + (error.message || 'tente novamente mais tarde.'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Esqueci minha senha';
+  }
+}
+
+formNovaSenha.addEventListener('submit', async function(event) {
+  event.preventDefault();
+  erroNovaSenha.classList.add('hidden');
+  const senha = document.getElementById('novaSenhaDev').value;
+  const confirmacao = document.getElementById('confirmarNovaSenhaDev').value;
+  const btn = document.getElementById('btnSalvarNovaSenha');
+  if (senha.length < 8) {
+    erroNovaSenha.textContent = 'Use pelo menos 8 caracteres.';
+    erroNovaSenha.className = 'rounded-xl p-3 text-xs bg-red-500/10 border border-red-500/30 text-red-300';
+    return;
+  }
+  if (senha !== confirmacao) {
+    erroNovaSenha.textContent = 'As senhas não são iguais.';
+    erroNovaSenha.className = 'rounded-xl p-3 text-xs bg-red-500/10 border border-red-500/30 text-red-300';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password: senha });
+    if (error) throw error;
+    alert('Senha atualizada. Agora entre no Painel Dev com seu e-mail e a nova senha.');
+    await supabaseClient.auth.signOut();
+    formNovaSenha.reset();
+    mostrarFormularioLogin();
+  } catch (error) {
+    console.error('Erro ao atualizar senha:', error);
+    erroNovaSenha.textContent = error.message || 'Não foi possível atualizar a senha. Abra novamente o link recebido por e-mail.';
+    erroNovaSenha.className = 'rounded-xl p-3 text-xs bg-red-500/10 border border-red-500/30 text-red-300';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Salvar nova senha';
+  }
+});
+
+async function sairPainel() {
+  pararRealtimeAdmin();
+  await supabaseClient.auth.signOut();
+  painelProtegido.classList.add('hidden');
+  telaLogin.classList.remove('hidden');
+  mostrarFormularioLogin();
+  document.getElementById('loginSenha').value = '';
+}
+
+supabaseClient.auth.onAuthStateChange(function(event, session) {
+  if (event === 'PASSWORD_RECOVERY') {
+    mostrarFormularioNovaSenha();
+    return;
+  }
+  if (event === 'SIGNED_OUT' || !session) {
+    painelProtegido.classList.add('hidden');
+    telaLogin.classList.remove('hidden');
+  }
+});
+
+
+/* ============================================================
+   ESCAPE HTML
+   ============================================================ */
+
+function esc(s) {
+
+  return String(s || '').replace(/[&<>"']/g, function(c) {
+
+    return {
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#039;'
+
+    }[c];
+
+  });
+
+}
+
+
+/* ============================================================
+   STATUS DA CONEXÃO
+   ============================================================ */
+
+function bancoOnline() {
+
+  document.getElementById('statusBanco').textContent =
+    'Conectado ao Banco de Dados';
+
+  document.getElementById('statusBolinha').className =
+    'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+
+}
+
+
+function bancoErro() {
+
+  document.getElementById('statusBanco').textContent =
+    'Erro na conexão com o Banco';
+
+  document.getElementById('statusBolinha').className =
+    'w-2.5 h-2.5 rounded-full bg-red-500';
+
+}
+
+
+/* ============================================================
+   BUSCAR SOLICITAÇÕES DO SUPABASE
+   ============================================================ */
+
+async function obterSolicitacoes() {
+
+  const { data, error } = await supabaseClient
+
+    .from('solicitacoes')
+
+    .select('*')
+
+    .eq('status', 'pendente')
+
+    .order('id', {
+      ascending: false
+    });
+
+
+  if (error) {
+
+    console.error(
+      'Erro ao buscar solicitações:',
+      error
+    );
+
+    bancoErro();
+
+    throw error;
+
+  }
+
+
+  bancoOnline();
+
+  return data || [];
+
+}
+
+
+/* ============================================================
+   RENDERIZAR SOLICITAÇÕES
+   ============================================================ */
+
+async function renderizarSolicitacoes() {
+
+  const tbody =
+    document.getElementById('tabelaSolicitacoes');
+
+  const count =
+    document.getElementById('countPendentes');
+
+
+  tbody.innerHTML =
+    '<tr><td colspan="4" class="p-6 text-center text-slate-500">' +
+    '<i class="fa-solid fa-spinner fa-spin mr-2"></i>' +
+    'Buscando solicitações...' +
+    '</td></tr>';
+
+
+  try {
+
+    const solicitacoes =
+      await obterSolicitacoes();
+
+
+    count.textContent =
+      solicitacoes.length + ' pedido(s)';
+
+
+    if (solicitacoes.length === 0) {
+
+      tbody.innerHTML =
+        '<tr>' +
+        '<td colspan="4" class="p-6 text-center text-slate-500">' +
+        'Nenhuma solicitação de coordenador pendente no momento.' +
+        '</td>' +
+        '</tr>';
+
+      return;
+
+    }
+
+
+    tbody.innerHTML =
+      solicitacoes.map(function(item) {
+
+        return (
+
+          '<tr class="hover:bg-slate-700/30 transition">' +
+
+            '<td class="p-3 font-semibold text-white">' +
+              esc(item.escola || '-') +
+            '</td>' +
+
+            '<td class="p-3 text-blue-400 font-mono">' +
+              esc(item.email || '-') +
+            '</td>' +
+
+            '<td class="p-3 text-slate-400">' +
+              esc(
+                item.data ||
+                item.created_at ||
+                '-'
+              ) +
+            '</td>' +
+
+            '<td class="p-3 text-right">' +
+
+              '<button ' +
+              'onclick="selecionarParaEnvio(\'' +
+              String(item.id).replace(/'/g, "\\'") +
+              '\')" ' +
+
+              'class="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 font-bold px-3 py-1.5 rounded-lg border border-blue-500/30 transition">' +
+
+                '<i class="fa-solid fa-key mr-1"></i>' +
+                'Atender Pedido' +
+
+              '</button>' +
+
+            '</td>' +
+
+          '</tr>'
+
+        );
+
+      }).join('');
+
+
+  } catch (erro) {
+
+    tbody.innerHTML =
+      '<tr>' +
+      '<td colspan="4" class="p-6 text-center text-red-400">' +
+      '<i class="fa-solid fa-circle-exclamation mr-2"></i>' +
+      'Não foi possível carregar as solicitações.' +
+      '</td>' +
+      '</tr>';
+
+  }
+
+}
+
+
+/* ============================================================
+   SELECIONAR SOLICITAÇÃO
+   ============================================================ */
+
+async function selecionarParaEnvio(id) {
+
+  const { data, error } =
+    await supabaseClient
+
+      .from('solicitacoes')
+
+      .select('*')
+
+      .eq('id', id)
+
+      .single();
+
+
+  if (error || !data) {
+
+    alert(
+      'Não foi possível localizar essa solicitação.'
+    );
+
+    return;
+
+  }
+
+
+  document.getElementById('envioId').value =
+    data.id;
+
+  document.getElementById('envioEmail').value =
+    data.email || '';
+
+
+  gerarNovoCodigo();
+
+
+  const escola =
+    data.escola
+      ? ' da ' + data.escola
+      : '';
+
+
+  document.getElementById('envioMensagem').value =
+
+    'Olá, Coordenador(a)' + escola + '.\n\n' +
+
+    'Sua solicitação de acesso ao sistema de Almoxarifado foi aprovada!\n\n' +
+
+    'Utilize o código de segurança abaixo no momento do seu cadastro:\n\n' +
+
+    'Atenciosamente,\n' +
+
+    'Equipe de Desenvolvimento.';
+
+
+  document.getElementById('btnEnviar').disabled =
+    false;
+
+}
+
+
+/* ============================================================
+   GERAR CÓDIGO
+   ============================================================ */
+
+function gerarNovoCodigo() {
+
+  const caracteres =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+  let codigo = '';
+
+  for (let i = 0; i < 6; i++) {
+
+    codigo += caracteres.charAt(
+      Math.floor(
+        Math.random() * caracteres.length
+      )
+    );
+
+  }
+
+
+  document.getElementById('envioCodigo').value =
+    codigo;
+
+}
+
+
+/* ============================================================
+   LIBERAR CÓDIGO
+   ============================================================ */
+
+async function enviarMensagem(event) {
+
+  event.preventDefault();
+
+
+  const id =
+    document.getElementById('envioId').value;
+
+  const email =
+    document.getElementById('envioEmail').value;
+
+  const codigo =
+    document.getElementById('envioCodigo').value;
+
+
+  if (!id || !email || !codigo) {
+
+    alert(
+      'Selecione uma solicitação antes de liberar o código.'
+    );
+
+    return;
+
+  }
+
+
+  const btn =
+    document.getElementById('btnEnviar');
+
+  btn.disabled = true;
+
+  btn.innerHTML =
+    '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';
+
+
+  try {
+
+    /* --------------------------------------------------------
+       1. BUSCAR SOLICITAÇÃO
+       -------------------------------------------------------- */
+
+    const { data: solicitacao, error: erroBusca } =
+      await supabaseClient
+
+        .from('solicitacoes')
+
+        .select('*')
+
+        .eq('id', id)
+
+        .single();
+
+
+    if (erroBusca || !solicitacao) {
+
+      throw new Error(
+        'Solicitação não encontrada.'
+      );
+
+    }
+
+
+    /* --------------------------------------------------------
+       2. SALVAR TOKEN NO SUPABASE
+       -------------------------------------------------------- */
+
+    const { error: erroToken } =
+      await supabaseClient
+
+        .from('token')
+
+        .insert({
+
+          token: codigo,
+
+          email: email,
+
+          escola: solicitacao.escola || '',
+
+          status: 'disponivel'
+
+        });
+
+
+    if (erroToken) {
+
+      console.error(
+        'Erro ao criar token:',
+        erroToken
+      );
+
+      throw erroToken;
+
+    }
+
+
+    /* --------------------------------------------------------
+       3. ENVIAR E-MAIL AUTOMATICAMENTE PELO RESEND
+       -------------------------------------------------------- */
+
+    const { data: resultadoEmail, error: erroEmail } =
+      await supabaseClient.functions.invoke(
+        'enviar-token',
+        {
+          body: {
+            email: email,
+            escola: solicitacao.escola || '',
+            codigo: codigo
+          }
+        }
+      );
+
+    if (erroEmail) {
+      console.error(
+        'Erro ao chamar a função enviar-token:',
+        erroEmail
+      );
+
+      throw new Error(
+        erroEmail.message ||
+        'Não foi possível chamar o serviço de envio de e-mail.'
+      );
+    }
+
+    if (!resultadoEmail || resultadoEmail.success !== true) {
+      console.error(
+        'Resposta da função enviar-token:',
+        resultadoEmail
+      );
+
+      throw new Error(
+        (resultadoEmail && resultadoEmail.error)
+          ? (
+              typeof resultadoEmail.error === 'string'
+                ? resultadoEmail.error
+                : JSON.stringify(resultadoEmail.error)
+            )
+          : 'O e-mail não foi enviado.'
+      );
+    }
+
+
+    /* --------------------------------------------------------
+       4. ALTERAR SOLICITAÇÃO PARA ENVIADO
+       -------------------------------------------------------- */
+
+    const { error: erroStatus } =
+      await supabaseClient
+
+        .from('solicitacoes')
+
+        .update({
+
+          status: 'ENVIADO'
+
+        })
+
+        .eq('id', id);
+
+
+    if (erroStatus) {
+
+      console.error(
+        'Erro ao atualizar solicitação:',
+        erroStatus
+      );
+
+      throw erroStatus;
+
+    }
+
+
+    /* --------------------------------------------------------
+       5. SUCESSO
+       -------------------------------------------------------- */
+
+    alert(
+      '✅ Código liberado e e-mail enviado com sucesso!\n\n' +
+
+      'E-mail: ' + email + '\n' +
+
+      'Código: ' + codigo
+    );
+
+
+    document.getElementById('formEnvio').reset();
+
+    document.getElementById('envioId').value =
+      '';
+
+    document.getElementById('btnEnviar').disabled =
+      true;
+
+
+    document.getElementById('btnEnviar').innerHTML =
+      '<i class="fa-solid fa-paper-plane"></i> Liberar Código';
+
+
+    await renderizarSolicitacoes();
+
+    await renderizarHistorico();
+
+
+  } catch (erro) {
+
+    console.error(erro);
+
+    alert(
+      '❌ Não foi possível liberar o código.\n\n' +
+      'Erro: ' +
+      (erro.message || JSON.stringify(erro))
+    );
+
+
+    btn.disabled = false;
+
+    btn.innerHTML =
+      '<i class="fa-solid fa-paper-plane"></i> Liberar Código';
+
+  }
+
+}
+
+
+/* ============================================================
+   HISTÓRICO
+   ============================================================ */
+
+async function renderizarHistorico() {
+
+  const tbody =
+    document.getElementById('tabelaHistorico');
+
+
+  const { data, error } =
+    await supabaseClient
+
+      .schema('public')
+
+      .from('token')
+
+      .select('*')
+
+      .order('id', {
+        ascending: false
+      });
+
+
+  if (error) {
+
+    console.error(
+      'Erro ao buscar histórico:',
+      error
+    );
+
+    tbody.innerHTML =
+      '<tr>' +
+      '<td colspan="5" class="p-6 text-center text-red-400">' +
+      'Não foi possível carregar o histórico.' +
+      '</td>' +
+      '</tr>';
+
+    return;
+
+  }
+
+
+  if (!data || data.length === 0) {
+
+    tbody.innerHTML =
+      '<tr>' +
+      '<td colspan="5" class="p-6 text-center text-slate-500">' +
+      'Nenhum código liberado ainda.' +
+      '</td>' +
+      '</tr>';
+
+    return;
+
+  }
+
+
+  tbody.innerHTML =
+    data.map(function(token) {
+
+      return (
+
+        '<tr class="hover:bg-slate-700/20">' +
+
+          '<td class="p-3 text-blue-400 font-mono">' +
+            esc(token.email || '-') +
+          '</td>' +
+
+          '<td class="p-3 font-mono font-bold text-emerald-400">' +
+            esc(token.token || '-') +
+          '</td>' +
+
+          '<td class="p-3 text-slate-300">' +
+            esc(token.escola || '-') +
+          '</td>' +
+
+          '<td class="p-3 text-slate-400">' +
+            esc(
+              token.created_at ||
+              token.data ||
+              '-'
+            ) +
+          '</td>' +
+
+          '<td class="p-3">' +
+
+            '<span class="' +
+
+              (String(token.status).toLowerCase() === 'usado'
+
+                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+
+                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') +
+
+              ' border px-2.5 py-0.5 rounded-full text-[10px] font-bold">' +
+
+              esc(token.status || '-') +
+
+            '</span>' +
+
+          '</td>' +
+
+        '</tr>'
+
+      );
+
+    }).join('');
+
+}
+
+
+/* ============================================================
+   CENTRAL DE ATENDIMENTOS
+   ============================================================ */
+let atendimentosSuporte = [];
+let atendimentoSelecionado = null;
+let suporteNotificacoesInicializadas = false;
+let suporteMensagensVistasAdmin = {};
+let suporteNotificacoesPendentesAdmin = 0;
+let suporteRealtimeChannel = null;
+let suporteRealtimeAtivo = false;
+
+async function notificarAdmin(titulo, texto){
+  const toast=document.createElement('div');
+  toast.className='fixed top-4 right-4 z-[100] max-w-sm w-[calc(100%-2rem)] sm:w-auto bg-slate-800 border border-slate-700 shadow-2xl rounded-2xl p-4 flex gap-3 items-start';
+  toast.innerHTML='<div class="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-300 flex items-center justify-center shrink-0"><i class="fa-solid fa-bell"></i></div><div class="min-w-0"><strong class="block text-xs font-extrabold text-white">'+esc(titulo)+'</strong><span class="block text-[11px] text-slate-300 mt-1">'+esc(texto)+'</span></div><button type="button" class="ml-auto text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>';
+  toast.querySelector('button').onclick=()=>toast.remove();
+  document.body.appendChild(toast);
+  setTimeout(()=>{if(toast.parentNode)toast.remove();},6500);
+  try{if('Notification' in window && Notification.permission==='granted')new Notification(titulo,{body:texto});}catch(e){}
+}
+
+async function ativarNotificacoesAdmin(){
+  if(!('Notification' in window)){alert('Seu navegador não oferece notificações.');return;}
+  try{const p=await Notification.requestPermission(); if(p==='granted') alert('Notificações do suporte ativadas.'); else alert('As notificações não foram autorizadas.');}catch(e){alert('Não foi possível ativar as notificações.');}
+}
+
+function atualizarAvisoAdmin(qtd){
+  const el=document.getElementById('suporteAdminAviso');
+  if(!el)return;
+  if(qtd>0){el.textContent=qtd+' nova(s) mensagem(ns)';el.classList.remove('hidden');}else{el.classList.add('hidden');}
+}
+
+function pararRealtimeAdmin(){
+  if(suporteRealtimeChannel){
+    try{ supabaseClient.removeChannel(suporteRealtimeChannel); }catch(e){}
+  }
+  suporteRealtimeChannel = null;
+  suporteRealtimeAtivo = false;
+}
+
+function iniciarRealtimeAdmin(){
+  try{
+    pararRealtimeAdmin();
+    suporteRealtimeChannel = supabaseClient
+      .channel('painel-dev-suporte-realtime')
+      .on('postgres_changes', {event:'INSERT', schema:'public', table:'mensagens_atendimento'}, function(payload){
+        const n = payload && payload.new ? payload.new : {};
+        if(n.remetente_tipo === 'usuario'){
+          suporteNotificacoesPendentesAdmin++;
+          notificarAdmin('Nova mensagem de atendimento', '#' + (n.atendimento_id || '') + ' · Um usuário enviou uma nova mensagem.');
+          atualizarAvisoAdmin(suporteNotificacoesPendentesAdmin);
+        }
+        if(atendimentoSelecionado && Number(n.atendimento_id) === Number(atendimentoSelecionado.id)){
+          carregarMensagensAtendimento();
+        }
+        carregarAtendimentos();
+      })
+      .on('postgres_changes', {event:'INSERT', schema:'public', table:'atendimentos'}, function(payload){
+        const n = payload && payload.new ? payload.new : {};
+        suporteNotificacoesPendentesAdmin++;
+        notificarAdmin('Novo atendimento', '#' + (n.id || '') + ' · ' + (n.usuario || 'Usuário') + ' abriu um chamado.');
+        atualizarAvisoAdmin(suporteNotificacoesPendentesAdmin);
+        carregarAtendimentos();
+      })
+      .on('postgres_changes', {event:'UPDATE', schema:'public', table:'atendimentos'}, function(payload){
+        const n = payload && payload.new ? payload.new : {};
+        if(atendimentoSelecionado && Number(n.id) === Number(atendimentoSelecionado.id)){
+          atendimentoSelecionado = Object.assign({}, atendimentoSelecionado, n);
+          const status = document.getElementById('suporteNovoStatus');
+          if(status) status.value = n.status || 'aberto';
+        }
+        carregarAtendimentos();
+      })
+      .subscribe(function(status){
+        suporteRealtimeAtivo = status === 'SUBSCRIBED';
+        if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('Realtime do painel indisponível; atualização de 5s permanece como fallback.');
+      });
+  }catch(e){
+    suporteRealtimeAtivo = false;
+    console.warn('Não foi possível iniciar Realtime no painel:', e);
+  }
+}
+
+async function chamarSuporte(body) {
+  const { data, error } = await supabaseClient.functions.invoke('suporte', { body });
+
+  if (error) {
+    console.error('Erro bruto da Edge Function:', error);
+
+    let detalhe = '';
+
+    try {
+      if (error.context) {
+        const resposta = await error.context.json();
+        detalhe = resposta?.erro || resposta?.message || '';
+      }
+    } catch (e) {
+      console.warn('Não foi possível ler o corpo do erro:', e);
+    }
+
+    throw new Error(
+      detalhe ||
+      error.message ||
+      'A Edge Function retornou um erro.'
+    );
+  }
+
+  if (!data || data.sucesso !== true) {
+    throw new Error(
+      data?.erro ||
+      'Não foi possível concluir a operação de suporte.'
+    );
+  }
+
+  return data;
+}
+
+async function carregarAtendimentos() {
+  const lista = document.getElementById('listaAtendimentos');
+  lista.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Carregando atendimentos...</div>';
+  try {
+    const data = await chamarSuporte({ acao: 'listar_admin' });
+    const novaLista = data.atendimentos || [];
+    novaLista.forEach(a => {
+      const mid = a.ultima_mensagem_id;
+      if (a.ultima_mensagem_tipo === 'usuario' && mid && !suporteMensagensVistasAdmin[mid]) {
+        if (suporteNotificacoesInicializadas) {
+          suporteNotificacoesPendentesAdmin++;
+          notificarAdmin('Novo atendimento / mensagem', '#' + a.id + ' · ' + (a.usuario || 'Usuário') + ' enviou uma mensagem.');
+        }
+        suporteMensagensVistasAdmin[mid] = true;
+      }
+    });
+    atendimentosSuporte = novaLista;
+    atualizarContadoresSuporte();
+    renderizarListaAtendimentos();
+    atualizarAvisoAdmin(suporteNotificacoesPendentesAdmin);
+    suporteNotificacoesInicializadas = true;
+  } catch (erro) {
+    console.error('Erro ao carregar atendimentos:', erro);
+    lista.innerHTML = '<div class="p-6 text-center text-red-400 text-xs"><i class="fa-solid fa-circle-exclamation mr-2"></i> Não foi possível carregar os atendimentos.</div>';
+  }
+}
+
+function atualizarContadoresSuporte() {
+  const contar = status => atendimentosSuporte.filter(a => String(a.status || '').toLowerCase() === status).length;
+  document.getElementById('suporteCountAbertos').textContent = contar('aberto');
+  document.getElementById('suporteCountAtendimento').textContent = contar('em_atendimento');
+  document.getElementById('suporteCountResolvidos').textContent = contar('resolvido');
+  document.getElementById('suporteCountTotal').textContent = atendimentosSuporte.length;
+}
+
+function statusSuporteBadge(status) {
+  const s = String(status || '').toLowerCase();
+  const mapa = {
+    aberto: ['bg-red-500/10 text-red-400 border-red-500/20', 'Aberto'],
+    em_atendimento: ['bg-amber-500/10 text-amber-400 border-amber-500/20', 'Em atendimento'],
+    resolvido: ['bg-emerald-500/10 text-emerald-400 border-emerald-500/20', 'Resolvido'],
+    encerrado: ['bg-slate-500/10 text-slate-400 border-slate-500/20', 'Encerrado']
+  };
+  const item = mapa[s] || ['bg-slate-500/10 text-slate-400 border-slate-500/20', status || '-'];
+  return '<span class="' + item[0] + ' border px-2 py-1 rounded-full text-[10px] font-bold">' + esc(item[1]) + '</span>';
+}
+
+function renderizarListaAtendimentos() {
+  const lista = document.getElementById('listaAtendimentos');
+  const busca = String(document.getElementById('suporteBusca').value || '').toLowerCase().trim();
+  const filtro = document.getElementById('suporteFiltroStatus').value;
+
+  const filtrados = atendimentosSuporte.filter(a => {
+    const texto = [a.usuario, a.escola, a.assunto, a.categoria, a.email].join(' ').toLowerCase();
+    const statusOk = filtro === 'todos' || String(a.status || '').toLowerCase() === filtro;
+    return statusOk && (!busca || texto.includes(busca));
+  });
+
+  if (!filtrados.length) {
+    lista.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs">Nenhum atendimento encontrado.</div>';
+    return;
+  }
+
+  lista.innerHTML = filtrados.map(a => `
+    <button type="button" onclick="abrirAtendimento(${Number(a.id)})" class="w-full text-left bg-slate-900/60 hover:bg-slate-700/50 border border-slate-700 rounded-xl p-4 transition">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[10px] text-cyan-400 font-mono">#${Number(a.id)}</span>
+            ${statusSuporteBadge(a.status)}
+            <span class="text-[10px] text-slate-500">${esc(a.categoria || 'Outro')}</span>
+          </div>
+          <div class="font-bold text-white text-sm mt-2 truncate">${esc(a.assunto || 'Sem assunto')}</div>
+          <div class="text-[11px] text-slate-400 mt-1">${esc(a.usuario || '-')} · ${esc(a.escola || '-')}</div>
+        </div>
+        <div class="text-[10px] text-slate-500 shrink-0">${esc(a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '-')}</div>
+      </div>
+    </button>
+  `).join('');
+}
+
+async function abrirAtendimento(id) {
+  const atendimento = atendimentosSuporte.find(a => Number(a.id) === Number(id));
+  if (!atendimento) return;
+  atendimentoSelecionado = atendimento;
+  suporteNotificacoesPendentesAdmin = 0;
+  atualizarAvisoAdmin(0);
+
+  document.getElementById('suporteModalTitulo').textContent = '#' + atendimento.id + ' · ' + (atendimento.assunto || 'Atendimento');
+  document.getElementById('suporteModalInfo').textContent =
+    (atendimento.usuario || '-') + ' · ' + (atendimento.perfil || '-') + ' · ' + (atendimento.escola || '-') +
+    (atendimento.email ? ' · ' + atendimento.email : '');
+  document.getElementById('suporteNovoStatus').value = atendimento.status || 'aberto';
+  document.getElementById('suporteResposta').value = '';
+  document.getElementById('modalAtendimento').classList.remove('hidden');
+  await carregarMensagensAtendimento();
+}
+
+async function carregarMensagensAtendimento() {
+  if (!atendimentoSelecionado) return;
+  const area = document.getElementById('suporteMensagens');
+  area.innerHTML = '<div class="text-center text-slate-500 text-xs py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Carregando conversa...</div>';
+  try {
+    const data = await chamarSuporte({
+      acao: 'listar_mensagens_admin',
+      atendimento_id: atendimentoSelecionado.id
+    });
+    const mensagens = data.mensagens || [];
+    mensagens.forEach(m => { if (m.remetente_tipo === 'usuario') suporteMensagensVistasAdmin[m.id] = true; });
+    if (!mensagens.length) {
+      area.innerHTML = '<div class="text-center text-slate-500 text-xs py-8">Nenhuma mensagem ainda.</div>';
+      return;
+    }
+    area.innerHTML = mensagens.map(m => {
+      const suporte = m.remetente_tipo === 'suporte';
+      return `<div class="flex ${suporte ? 'justify-end' : 'justify-start'}">
+        <div class="max-w-[85%] ${suporte ? 'bg-cyan-600/20 border-cyan-500/30' : 'bg-slate-900 border-slate-700'} border rounded-2xl px-4 py-3">
+          <div class="text-[10px] font-bold ${suporte ? 'text-cyan-300' : 'text-slate-400'} mb-1">${esc(suporte ? 'Suporte' : (m.remetente || 'Usuário'))}</div>
+          <div class="text-xs text-slate-200 whitespace-pre-wrap break-words">${esc(m.mensagem || '')}</div>
+          <div class="text-[9px] text-slate-500 mt-2">${esc(m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '')}</div>
+        </div>
+      </div>`;
+    }).join('');
+    area.scrollTop = area.scrollHeight;
+  } catch (erro) {
+    console.error('Erro ao carregar mensagens:', erro);
+    area.innerHTML = '<div class="text-center text-red-400 text-xs py-8">Não foi possível carregar a conversa.</div>';
+  }
+}
+
+async function redefinirSenhaAtendimento(){
+  if(!atendimentoSelecionado) return;
+  const usuario = String(atendimentoSelecionado.usuario || '').trim();
+  const escola = String(atendimentoSelecionado.escola || '').trim();
+  if(!usuario || !escola){ alert('Não foi possível identificar o usuário e a escola.'); return; }
+  if(usuario.toLowerCase() === 'admin'){ alert('A conta principal não pode ser redefinida por este fluxo.'); return; }
+  if(!confirm('Gerar uma nova senha temporária para @' + usuario + '?')) return;
+  try{
+    const data = await chamarSuporte({acao:'redefinir_senha_admin', usuario, escola});
+    const senha = data.senhaTemporaria || '';
+    if(!senha) throw new Error('A senha temporária não foi retornada.');
+    await navigator.clipboard?.writeText(senha).catch(()=>{});
+    alert('Senha redefinida com sucesso!\n\nUsuário: @' + usuario + '\nSenha temporária: ' + senha + '\n\nA senha foi copiada para a área de transferência quando permitido.');
+    const campo = document.getElementById('suporteResposta');
+    if(campo && !campo.value.trim()) campo.value = 'Sua senha foi redefinida pelo suporte.\n\nSenha temporária: ' + senha + '\n\nAo entrar, altere a senha em Minha conta.';
+  }catch(e){
+    console.error(e);
+    alert(e.message || 'Não foi possível redefinir a senha.');
+  }
+}
+
+async function enviarRespostaAtendimento() {
+  if (!atendimentoSelecionado) return;
+  const campo = document.getElementById('suporteResposta');
+  const mensagem = campo.value.trim();
+  if (!mensagem) return;
+
+  try {
+    await chamarSuporte({
+      acao: 'enviar_mensagem_admin',
+      atendimento_id: atendimentoSelecionado.id,
+      mensagem
+    });
+    campo.value = '';
+    await carregarMensagensAtendimento();
+    await carregarAtendimentos();
+  } catch (erro) {
+    console.error('Erro ao enviar resposta:', erro);
+    alert('Não foi possível enviar a resposta.');
+  }
+}
+
+async function alterarStatusAtendimento() {
+  if (!atendimentoSelecionado) return;
+  const status = document.getElementById('suporteNovoStatus').value;
+  try {
+    await chamarSuporte({
+      acao: 'alterar_status_admin',
+      atendimento_id: atendimentoSelecionado.id,
+      status
+    });
+    atendimentoSelecionado.status = status;
+    await carregarAtendimentos();
+    document.getElementById('suporteNovoStatus').value = status;
+  } catch (erro) {
+    console.error('Erro ao alterar status:', erro);
+    alert('Não foi possível atualizar o status.');
+  }
+}
+
+function fecharModalAtendimento() {
+  document.getElementById('modalAtendimento').classList.add('hidden');
+  atendimentoSelecionado = null;
+}
+
+document.getElementById('modalAtendimento').addEventListener('click', function(e) {
+  if (e.target === this) fecharModalAtendimento();
+});
+
+/* ============================================================
+   ATUALIZAÇÃO AUTOMÁTICA
+   ============================================================ */
+
+/*
+   Verifica o banco a cada 5 segundos.
+   Assim, se alguém fizer um cadastro no site principal,
+   o pedido aparece no Painel Dev automaticamente.
+*/
+
+setInterval(function() {
+
+  renderizarSolicitacoes();
+  if (!document.getElementById('painelProtegido').classList.contains('hidden')) {
+    carregarAtendimentos();
+  }
+
+}, 5000);
+
+
+/* ============================================================
+   INICIALIZAÇÃO
+   ============================================================ */
+
+async function iniciarPainel() {
+
+  try {
+
+    await renderizarSolicitacoes();
+
+    await renderizarHistorico();
+
+  } catch (erro) {
+
+    console.error(erro);
+
+  }
+
+}
+
+
+iniciarAutenticacao();
+
+</script>
+
+</body>
+</html>
