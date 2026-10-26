@@ -540,6 +540,7 @@ async function iniciarAutenticacao() {
 
 formLoginDev.addEventListener('submit', async function(event) {
   event.preventDefault();
+  alert('O formulário de login foi acionado!');
   limparErroLogin();
 
   const email = document.getElementById('loginEmail').value.trim();
